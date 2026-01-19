@@ -1,0 +1,4 @@
+project_id = "kdjdrfzobmvedyrvlfoo"
+
+[functions.check-phone-requests]
+verify_jwt = false
