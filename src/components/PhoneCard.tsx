@@ -1,7 +1,7 @@
 import { Phone, CONDITION_OPTIONS, APPLE_BRAND_ID } from "@/hooks/usePhones";
 import { Edit2, Trash2, Heart, Smartphone, Battery } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { useFavorites, useToggleFavorite } from "@/hooks/useFavorites";
+import { useLikedPhoneIds, useToggleLike } from "@/hooks/useLikedPhones";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "date-fns";
@@ -18,8 +18,8 @@ interface PhoneCardProps {
 
 export function PhoneCard({ phone, onDelete, showActions = true }: PhoneCardProps) {
   const { user, isAdmin } = useAuth();
-  const { data: favorites } = useFavorites(user?.id);
-  const toggleFavorite = useToggleFavorite();
+  const { data: likedPhoneIds = [] } = useLikedPhoneIds(user?.id);
+  const toggleLike = useToggleLike();
   const navigate = useNavigate();
   
   // Fetch first image for this phone
@@ -40,18 +40,22 @@ export function PhoneCard({ phone, onDelete, showActions = true }: PhoneCardProp
 
   const imageUrl = phoneImages?.[0]?.image_url;
   
-  const isFavorite = favorites?.includes(phone.id) ?? false;
+  const isLiked = likedPhoneIds.includes(phone.id);
   const canEdit = user && (user.id === phone.owner_id || isAdmin);
   const isApple = phone.brand_id === APPLE_BRAND_ID;
 
-  const handleFavoriteClick = (e: React.MouseEvent) => {
+  const handleLikeClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!user) {
-      toast.error("Sevimlilarga qo'shish uchun tizimga kiring");
+      toast.error("Yoqtirish uchun tizimga kiring");
       navigate("/auth");
       return;
     }
-    toggleFavorite.mutate({ phoneId: phone.id, userId: user.id, isFavorite });
+    toggleLike.mutate({
+      phoneId: phone.id,
+      userId: user.id,
+      isLiked,
+    });
   };
   
   const formattedPrice = new Intl.NumberFormat("uz-UZ").format(phone.price) + " $";
@@ -67,95 +71,69 @@ export function PhoneCard({ phone, onDelete, showActions = true }: PhoneCardProp
     navigate(`/phones/${phone.id}`);
   };
 
-  return (
-    <div 
-      className="group cursor-pointer"
-      onClick={handleCardClick}
-    >
-      {/* Image */}
-      <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-muted">
-        {imageUrl ? (
-          <img
-            src={imageUrl}
-            alt={phone.name}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center bg-muted">
-            <Smartphone className="h-12 w-12 text-muted-foreground/40" />
-          </div>
-        )}
-        
-        {/* Favorite button */}
-        <button 
-          className={`absolute top-2 right-2 p-1.5 rounded-full backdrop-blur-sm transition-colors ${
-            isFavorite 
-              ? "bg-primary text-primary-foreground" 
-              : "bg-card/80 hover:bg-card text-muted-foreground hover:text-primary"
-          }`}
-          onClick={handleFavoriteClick}
-          disabled={toggleFavorite.isPending}
-        >
-          <Heart className={`h-5 w-5 ${isFavorite ? "fill-current" : ""}`} />
-        </button>
-
-        {/* Battery health badge for Apple phones */}
-        {isApple && phone.battery_health !== null && (
-          <div className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-card/90 backdrop-blur-sm px-2 py-1 text-xs font-medium text-foreground">
-            <Battery className="h-3 w-3 text-green-500" />
-            {phone.battery_health}%
-          </div>
-        )}
-
-        {/* Edit/Delete buttons */}
-        {showActions && canEdit && (
-          <div className="absolute top-2 left-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-            <Button
-              variant="secondary"
-              size="icon"
-              className="h-8 w-8 bg-card/90 backdrop-blur-sm hover:bg-card"
-              onClick={(e) => {
-                e.stopPropagation();
-                navigate(`/phones/${phone.id}/edit`);
-              }}
-            >
-              <Edit2 className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="secondary"
-              size="icon"
-              className="h-8 w-8 bg-card/90 backdrop-blur-sm text-destructive hover:bg-card"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete?.(phone.id);
-              }}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
-      </div>
-      
-      {/* Content */}
-      <div className="mt-2 space-y-1">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="text-sm font-normal text-foreground line-clamp-2 leading-tight">
-            {phone.name} {phone.storage}
-          </h3>
+return (
+  <div
+    onClick={handleCardClick}
+    className="group cursor-pointer rounded-2xl bg-card shadow-sm hover:shadow-md transition-shadow"
+  >
+    {/* IMAGE */}
+    <div className="relative aspect-[3/4] overflow-hidden rounded-t-2xl bg-muted">
+      {imageUrl ? (
+        <img
+          src={imageUrl}
+          alt={phone.name}
+          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center">
+          <Smartphone className="h-12 w-12 text-muted-foreground/40" />
         </div>
-        
-        <p className="text-base font-bold text-foreground">
-          {formattedPrice}
-        </p>
-        
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          <span>{phone.city}</span>
-          <span>·</span>
-          <span>{conditionLabel}</span>
-          <span>·</span>
-          <span>{timeAgo}</span>
+      )}
+
+      {/* gradient overlay */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+
+      {/* LIKE */}
+      <button
+        onClick={handleLikeClick}
+        disabled={toggleLike.isPending}
+        className={`absolute top-3 right-3 z-10 rounded-full p-2 backdrop-blur-md transition ${
+          isLiked
+            ? "bg-red-500 text-white"
+            : "bg-white/80 text-muted-foreground hover:text-red-500"
+        }`}
+      >
+        <Heart className={`h-5 w-5 ${isLiked ? "fill-current" : ""}`} />
+      </button>
+
+      {/* BATTERY */}
+      {isApple && phone.battery_health !== null && (
+        <div className="absolute bottom-3 left-3 z-10 flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 text-xs font-medium">
+          <Battery className="h-3 w-3 text-green-500" />
+          {phone.battery_health}%
         </div>
+      )}
+    </div>
+
+    {/* CONTENT */}
+    <div className="space-y-1.5 p-3">
+      <h3 className="line-clamp-2 text-sm font-medium leading-snug">
+        {phone.name} {phone.storage}
+      </h3>
+
+      <p className="text-base font-bold text-primary">
+        {formattedPrice}
+      </p>
+
+      <div className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+        <span>{phone.city}</span>
+        <span>•</span>
+        <span>{conditionLabel}</span>
+        <span>•</span>
+        <span>{timeAgo}</span>
       </div>
     </div>
-  );
+  </div>
+);
+
 }

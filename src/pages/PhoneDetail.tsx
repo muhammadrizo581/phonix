@@ -4,9 +4,27 @@ import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, MessageCircle, Edit2, Trash2, Loader2, ChevronLeft, ChevronRight, Smartphone, MapPin, HardDrive, CheckCircle, Battery } from "lucide-react";
+import {
+  ArrowLeft,
+  MessageCircle,
+  Edit2,
+  Trash2,
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
+  Smartphone,
+  MapPin,
+  HardDrive,
+  CheckCircle,
+  Battery,
+} from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { useDeletePhone, Phone, CONDITION_OPTIONS, APPLE_BRAND_ID } from "@/hooks/usePhones";
+import {
+  useDeletePhone,
+  Phone,
+  CONDITION_OPTIONS,
+  APPLE_BRAND_ID,
+} from "@/hooks/usePhones";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -15,7 +33,6 @@ import { format } from "date-fns";
 interface PhoneImage {
   id: string;
   image_url: string;
-  is_primary: boolean;
   display_order: number;
 }
 
@@ -25,316 +42,256 @@ export default function PhoneDetail() {
   const { user, isAdmin } = useAuth();
   const { toast } = useToast();
   const deletePhone = useDeletePhone();
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  const [currentImage, setCurrentImage] = useState(0);
+  const [imageError, setImageError] = useState(false);
+
+  /* ================= DATA ================= */
 
   const { data: phone, isLoading } = useQuery({
     queryKey: ["phone", id],
     queryFn: async () => {
-      if (!id) return null;
       const { data, error } = await supabase
         .from("phones")
         .select("*")
-        .eq("id", id)
+        .eq("id", id!)
         .single();
-
       if (error) throw error;
 
-      // Fetch owner profile separately
       let ownerProfile = null;
-      if (data?.owner_id) {
-        const { data: profileData } = await supabase
+      if (data.owner_id) {
+        const { data: profile } = await supabase
           .from("profiles")
           .select("full_name, avatar_url")
           .eq("user_id", data.owner_id)
           .single();
-        ownerProfile = profileData;
+        ownerProfile = profile;
       }
 
-      return { ...data, owner_profile: ownerProfile } as Phone & { owner_profile: { full_name: string | null; avatar_url: string | null } | null };
+      return { ...data, owner_profile: ownerProfile } as Phone & {
+        owner_profile: { full_name: string | null; avatar_url: string | null } | null;
+      };
     },
     enabled: !!id,
   });
 
-  const { data: phoneImages } = useQuery({
+  const { data: images = [] } = useQuery({
     queryKey: ["phone-images", id],
     queryFn: async () => {
-      if (!id) return [];
       const { data, error } = await supabase
         .from("phone_images")
         .select("*")
-        .eq("phone_id", id)
+        .eq("phone_id", id!)
         .order("display_order", { ascending: true });
-
       if (error) throw error;
       return data as PhoneImage[];
     },
     enabled: !!id,
   });
 
-  const allImages = phoneImages && phoneImages.length > 0
-    ? phoneImages.map((img) => img.image_url)
-    : [];
-
-  const canEdit = user && phone && (user.id === phone.owner_id || isAdmin);
-  const isOwnPhone = user?.id === phone?.owner_id;
-  const isApple = phone?.brand_id === APPLE_BRAND_ID;
-
-  const formattedPrice = phone
-    ? new Intl.NumberFormat("uz-UZ").format(phone.price) + " $"
-    : "";
-
-  const conditionLabel = phone 
-    ? CONDITION_OPTIONS.find(c => c.value === phone.condition)?.label || phone.condition 
-    : "";
-
-  const handleDelete = () => {
-    if (!phone) return;
-    if (confirm("Rostdan ham bu e'lonni o'chirmoqchimisiz?")) {
-      deletePhone.mutate(phone.id, {
-        onSuccess: () => navigate("/"),
-      });
-    }
-  };
-
-  const nextImage = () => {
-    setCurrentImageIndex((prev) => (prev + 1) % allImages.length);
-  };
-
-  const prevImage = () => {
-    setCurrentImageIndex((prev) => (prev - 1 + allImages.length) % allImages.length);
-  };
+  /* ================= STATES ================= */
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="container py-8 flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
   if (!phone) {
-    return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="container py-8">
-          <p className="text-center text-muted-foreground">Telefon topilmadi</p>
-        </div>
-      </div>
-    );
+    return <div className="text-center py-10">Telefon topilmadi</div>;
   }
 
-  // Calculate how many specs to show (3 or 4 if battery health exists)
-  const showBattery = isApple && phone.battery_health !== null;
-  const gridCols = showBattery ? "grid-cols-4" : "grid-cols-3";
+  const canEdit = user && (user.id === phone.owner_id || isAdmin);
+  const isOwnPhone = user?.id === phone.owner_id;
+  const isApple = phone.brand_id === APPLE_BRAND_ID;
+
+  const formattedPrice =
+    new Intl.NumberFormat("uz-UZ").format(phone.price) + " $";
+
+  const conditionLabel =
+    CONDITION_OPTIONS.find((c) => c.value === phone.condition)?.label ||
+    phone.condition;
+
+  /* ================= ACTIONS ================= */
+
+  const next = () => setCurrentImage((i) => (i + 1) % images.length);
+  const prev = () => setCurrentImage((i) => (i - 1 + images.length) % images.length);
+
+  const handleDelete = () => {
+    if (!confirm("E'lonni o‘chirmoqchimisiz?")) return;
+    deletePhone.mutate(phone.id, {
+      onSuccess: () => navigate("/"),
+    });
+  };
+
+  /* ================= RENDER ================= */
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-[env(safe-area-inset-bottom)]">
+      <div className="h-[env(safe-area-inset-top)] bg-card" />
       <Header />
-      <main className="container py-6">
-        <Button
-          variant="ghost"
-          onClick={() => navigate(-1)}
-          className="mb-6 gap-2 hover:bg-primary/10"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Orqaga
+
+      <main className="container max-w-5xl py-6 space-y-6 mb-14">
+        {/* BACK */}
+        <Button variant="ghost" onClick={() => navigate(-1)} className="gap-2">
+          <ArrowLeft className="h-4 w-4" /> Orqaga
         </Button>
 
         <div className="grid gap-8 lg:grid-cols-2">
-          {/* Image Gallery */}
-          <div className="space-y-4">
-            <div className="relative aspect-square overflow-hidden rounded-xl bg-secondary/30 border border-border">
-              {allImages.length > 0 ? (
+          {/* ================= IMAGE ================= */}
+          <div className="space-y-3">
+            <div className="relative aspect-[9/16] rounded-2xl overflow-hidden bg-muted shadow-sm">
+              {images.length > 0 && !imageError ? (
                 <>
                   <img
-                    src={allImages[currentImageIndex]}
-                    alt={phone.name}
+                    src={images[currentImage].image_url}
                     className="h-full w-full object-cover"
+                    onError={() => setImageError(true)}
                   />
-                  {allImages.length > 1 && (
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
+
+                  {images.length > 1 && (
                     <>
                       <Button
-                        variant="secondary"
                         size="icon"
-                        className="absolute left-2 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur-sm hover:bg-primary/20"
-                        onClick={prevImage}
+                        variant="secondary"
+                        onClick={prev}
+                        className="absolute left-2 top-1/2 -translate-y-1/2"
                       >
-                        <ChevronLeft className="h-4 w-4" />
+                        <ChevronLeft />
                       </Button>
                       <Button
-                        variant="secondary"
                         size="icon"
-                        className="absolute right-2 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur-sm hover:bg-primary/20"
-                        onClick={nextImage}
+                        variant="secondary"
+                        onClick={next}
+                        className="absolute right-2 top-1/2 -translate-y-1/2"
                       >
-                        <ChevronRight className="h-4 w-4" />
+                        <ChevronRight />
                       </Button>
-                      <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-2">
-                        {allImages.map((_, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => setCurrentImageIndex(idx)}
-                            className={cn(
-                              "h-2 w-2 rounded-full transition-all",
-                              idx === currentImageIndex
-                                ? "w-6 bg-primary"
-                                : "bg-foreground/50 hover:bg-foreground/75"
-                            )}
-                          />
-                        ))}
-                      </div>
                     </>
                   )}
                 </>
               ) : (
-                <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-secondary to-muted">
-                  <Smartphone className="h-24 w-24 text-muted-foreground/40" />
+                <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+                  <Smartphone className="h-16 w-16 mb-2" />
+                  Rasm yo‘q
                 </div>
               )}
             </div>
 
-            {/* Thumbnail strip */}
-            {allImages.length > 1 && (
-              <div className="flex gap-2 overflow-x-auto pb-2">
-                {allImages.map((url, idx) => (
+            {/* THUMBNAILS */}
+            {images.length > 1 && (
+              <div className="flex gap-2 overflow-x-auto">
+                {images.map((img, i) => (
                   <button
-                    key={idx}
-                    onClick={() => setCurrentImageIndex(idx)}
+                    key={img.id}
+                    onClick={() => {
+                      setCurrentImage(i);
+                      setImageError(false);
+                    }}
                     className={cn(
-                      "h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border-2 transition-all",
-                      idx === currentImageIndex
-                        ? "border-primary"
-                        : "border-transparent opacity-70 hover:opacity-100"
+                      "h-16 w-16 rounded-xl overflow-hidden transition",
+                      i === currentImage
+                        ? "ring-2 ring-primary"
+                        : "opacity-70 hover:opacity-100"
                     )}
                   >
-                    <img
-                      src={url}
-                      alt={`Thumbnail ${idx + 1}`}
-                      className="h-full w-full object-cover"
-                    />
+                    <img src={img.image_url} className="h-full w-full object-cover" />
                   </button>
                 ))}
               </div>
             )}
           </div>
 
-          {/* Details */}
-          <div className="space-y-6">
+          {/* ================= INFO ================= */}
+          <div className="space-y-5">
+            {/* TITLE */}
             <div>
-              <h1 className="font-display text-3xl font-bold text-foreground">{phone.name}</h1>
-              <p className="mt-2 font-display text-4xl font-bold text-primary">
+              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
+                {phone.name}
+              </h1>
+              <p className="mt-1 text-3xl font-bold text-primary">
                 {formattedPrice}
               </p>
             </div>
 
-            {/* Specs */}
-            <div className={`grid ${gridCols} gap-4`}>
-              <div className="rounded-lg border border-border bg-card p-3 text-center">
-                <HardDrive className="h-5 w-5 text-primary mx-auto mb-1" />
-                <p className="text-sm text-muted-foreground">Xotira</p>
-                <p className="font-semibold text-foreground">{phone.storage}</p>
-              </div>
-              <div className="rounded-lg border border-border bg-card p-3 text-center">
-                <CheckCircle className="h-5 w-5 text-primary mx-auto mb-1" />
-                <p className="text-sm text-muted-foreground">Holati</p>
-                <p className="font-semibold text-foreground">{conditionLabel}</p>
-              </div>
-              <div className="rounded-lg border border-border bg-card p-3 text-center">
-                <MapPin className="h-5 w-5 text-primary mx-auto mb-1" />
-                <p className="text-sm text-muted-foreground">Shahar</p>
-                <p className="font-semibold text-foreground">{phone.city}</p>
-              </div>
-              {showBattery && (
-                <div className="rounded-lg border border-border bg-card p-3 text-center">
-                  <Battery className="h-5 w-5 text-green-500 mx-auto mb-1" />
-                  <p className="text-sm text-muted-foreground">Batareyka</p>
-                  <p className="font-semibold text-foreground">{phone.battery_health}%</p>
-                </div>
+            {/* SPECS */}
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="secondary" className="gap-1">
+                <HardDrive className="h-3 w-3" /> {phone.storage}
+              </Badge>
+              <Badge variant="secondary" className="gap-1">
+                <CheckCircle className="h-3 w-3" /> {conditionLabel}
+              </Badge>
+              <Badge variant="secondary" className="gap-1">
+                <MapPin className="h-3 w-3" /> {phone.city}
+              </Badge>
+              {isApple && phone.battery_health !== null && (
+                <Badge variant="secondary" className="gap-1">
+                  <Battery className="h-3 w-3 text-green-500" />
+                  {phone.battery_health}%
+                </Badge>
               )}
             </div>
 
+            {/* DESCRIPTION */}
             {phone.description && (
-              <div className="rounded-lg border border-border bg-card p-4">
-                <h3 className="mb-2 font-semibold text-foreground">Tavsif</h3>
-                <p className="text-muted-foreground whitespace-pre-wrap">
-                  {phone.description}
-                </p>
+              <div className="rounded-xl bg-muted/40 p-4">
+                <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-2">
+                  Tavsif
+                </h3>
+                <p className="text-sm leading-relaxed">{phone.description}</p>
               </div>
             )}
 
-            <div className="rounded-lg border border-border bg-card p-4">
-              <h3 className="mb-3 font-semibold text-foreground">Sotuvchi</h3>
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/20">
-                  <span className="text-lg font-semibold text-primary">
-                    {phone.owner_profile?.full_name?.[0]?.toUpperCase() || "U"}
-                  </span>
-                </div>
-                <div>
-                  <p className="font-medium text-foreground">
-                    {phone.owner_profile?.full_name || "Foydalanuvchi"}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    E'lon qo'yildi: {format(new Date(phone.created_at), "dd.MM.yyyy")}
-                  </p>
-                </div>
+            {/* SELLER */}
+            <div className="flex items-center gap-3 rounded-xl bg-muted/40 p-4">
+              <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center font-semibold text-primary">
+                {phone.owner_profile?.full_name?.[0]?.toUpperCase() || "U"}
+              </div>
+              <div>
+                <p className="font-medium">
+                  {phone.owner_profile?.full_name || "Foydalanuvchi"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {format(new Date(phone.created_at), "dd.MM.yyyy")}
+                </p>
               </div>
             </div>
 
-            {/* Action buttons */}
+            {/* ACTIONS */}
             {canEdit && (
-              <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="flex gap-2">
                 <Button
                   variant="outline"
-                  size="lg"
-                  className="gap-2 flex-1 border-border hover:bg-primary/10 hover:border-primary/50"
+                  className="flex-1 gap-2"
                   onClick={() => navigate(`/phones/${phone.id}/edit`)}
                 >
-                  <Edit2 className="h-5 w-5" />
-                  Tahrirlash
+                  <Edit2 className="h-4 w-4" /> Tahrirlash
                 </Button>
                 <Button
                   variant="destructive"
-                  size="lg"
-                  className="gap-2 flex-1"
+                  className="flex-1 gap-2"
                   onClick={handleDelete}
                 >
-                  <Trash2 className="h-5 w-5" />
-                  O'chirish
+                  <Trash2 className="h-4 w-4" /> O‘chirish
                 </Button>
               </div>
             )}
 
-            {/* Message button - only show if not own phone and user is logged in */}
-            {!isOwnPhone && user && phone && (
+            {!isOwnPhone && user && (
               <Button
                 size="lg"
-                className="w-full gap-2 bg-primary hover:bg-primary/90"
-                onClick={() => navigate(`/messages?phoneId=${phone.id}&sellerId=${phone.owner_id}`)}
+                className="w-full gap-2"
+                onClick={() =>
+                  navigate(`/messages?phoneId=${phone.id}&sellerId=${phone.owner_id}`)
+                }
               >
                 <MessageCircle className="h-5 w-5" />
                 Xabar yuborish
               </Button>
-            )}
-
-            {/* Login prompt for non-authenticated users */}
-            {!user && (
-              <div className="rounded-xl border border-border bg-card p-6 text-center">
-                <MessageCircle className="h-8 w-8 text-primary mx-auto mb-3" />
-                <h3 className="font-semibold text-foreground mb-2">Sotuvchi bilan bog'laning</h3>
-                <p className="text-muted-foreground text-sm mb-4">
-                  Xabar yuborish uchun tizimga kiring
-                </p>
-                <Button 
-                  onClick={() => navigate("/auth")}
-                  className="shadow-button bg-primary hover:bg-primary/90"
-                >
-                  Kirish
-                </Button>
-              </div>
             )}
           </div>
         </div>

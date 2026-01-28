@@ -8,6 +8,7 @@ import {
   PhoneCondition,
 } from "@/hooks/usePhones";
 import { useBrands } from "@/hooks/useBrands";
+import { useLikedPhoneIds } from "@/hooks/useLikedPhones";
 import { Header } from "@/components/Header";
 import { PhoneGrid } from "@/components/PhoneGrid";
 import { Button } from "@/components/ui/button";
@@ -151,7 +152,7 @@ export default function Index() {
   /* ================= RENDER ================= */
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-[env(safe-area-inset-bottom)]">
       {/* Safe area for iOS status bar */}
       <div className="h-[env(safe-area-inset-top)] bg-card" />
       
@@ -223,55 +224,49 @@ export default function Index() {
                   </Select>
                 </div>
 
-                {/* STORAGE - Multi-select with buttons */}
+                {/* STORAGE - Multi-select with custom checkboxes */}
                 <div className="space-y-2">
                   <Label>Xotira</Label>
-                  <div className="rounded-lg border p-3 space-y-2">
+                  <div className="rounded-lg border p-3 space-y-3">
                     <button
                       onClick={toggleAllStorage}
-                      className={`w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
-                        isAllStorageSelected
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-secondary hover:bg-secondary/80"
-                      }`}
+                      className="flex items-center space-x-2 w-full text-left"
                     >
-                      <div className={`flex h-5 w-5 items-center justify-center rounded border-2 ${
-                        isAllStorageSelected
-                          ? "border-primary-foreground bg-primary-foreground"
-                          : "border-muted-foreground"
+                      <div className={`h-5 w-5 rounded border-2 flex items-center justify-center ${
+                        isAllStorageSelected 
+                          ? 'bg-primary border-primary' 
+                          : 'border-input'
                       }`}>
-                        {isAllStorageSelected && <Check className="h-3 w-3 text-primary" />}
+                        {isAllStorageSelected && (
+                          <Check className="h-3 w-3 text-primary-foreground" />
+                        )}
                       </div>
-                      <span className="font-medium">Barchasi</span>
+                      <span className="text-sm font-medium">Barchasi</span>
                     </button>
                     
                     <div className="h-px bg-border" />
                     
-                    <div className="grid grid-cols-2 gap-2">
-                      {STORAGE_OPTIONS.map((storage) => {
-                        const isSelected = storageFilters.includes(storage);
-                        return (
-                          <button
-                            key={storage}
-                            onClick={() => toggleStorage(storage)}
-                            className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
-                              isSelected
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-secondary hover:bg-secondary/80"
-                            }`}
-                          >
-                            <div className={`flex h-5 w-5 items-center justify-center rounded border-2 ${
-                              isSelected
-                                ? "border-primary-foreground bg-primary-foreground"
-                                : "border-muted-foreground"
-                            }`}>
-                              {isSelected && <Check className="h-3 w-3 text-primary" />}
-                            </div>
-                            <span>{storage}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
+                    {STORAGE_OPTIONS.map((storage) => {
+                      const isChecked = storageFilters.includes(storage);
+                      return (
+                        <button
+                          key={storage}
+                          onClick={() => toggleStorage(storage)}
+                          className="flex items-center space-x-2 w-full text-left"
+                        >
+                          <div className={`h-5 w-5 rounded border-2 flex items-center justify-center ${
+                            isChecked 
+                              ? 'bg-primary border-primary' 
+                              : 'border-input'
+                          }`}>
+                            {isChecked && (
+                              <Check className="h-3 w-3 text-primary-foreground" />
+                            )}
+                          </div>
+                          <span className="text-sm">{storage}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
