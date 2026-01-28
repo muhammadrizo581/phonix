@@ -27,8 +27,8 @@ export function useToggleFavorite() {
     mutationFn: async ({ phoneId, userId, isFavorite }: { phoneId: string; userId: string; isFavorite: boolean }) => {
       if (isFavorite) {
         // Remove from favorites
-        const { error } = await supabase
-          .from("favorites")
+        const { error } = await (supabase as any)
+          .from("likes")
           .delete()
           .eq("phone_id", phoneId)
           .eq("user_id", userId);
@@ -36,15 +36,15 @@ export function useToggleFavorite() {
         if (error) throw error;
       } else {
         // Add to favorites
-        const { error } = await supabase
-          .from("favorites")
+        const { error } = await (supabase as any)
+          .from("likes")
           .insert({ phone_id: phoneId, user_id: userId });
 
         if (error) throw error;
       }
     },
     onSuccess: (_, { isFavorite }) => {
-      queryClient.invalidateQueries({ queryKey: ["favorites"] });
+      queryClient.invalidateQueries({ queryKey: ["likes"] });
       toast.success(isFavorite ? "Sevimlilardan olib tashlandi" : "Sevimlilarga qo'shildi");
     },
     onError: (error) => {

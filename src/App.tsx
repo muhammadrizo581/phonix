@@ -13,6 +13,7 @@ import Chat from "./pages/Chat";
 import PhoneDetail from "./pages/PhoneDetail";
 import Requests from "./pages/Requests";
 import NotFound from "./pages/NotFound";
+import LikesPage from "./pages/Likes";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +26,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/likes" element={<LikesPage />} />
           <Route path="/phones/new" element={<CreatePhone />} />
           <Route path="/phones/:id" element={<PhoneDetail />} />
           <Route path="/phones/:id/edit" element={<EditPhone />} />
