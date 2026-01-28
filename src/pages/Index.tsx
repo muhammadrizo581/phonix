@@ -8,12 +8,10 @@ import {
   PhoneCondition,
 } from "@/hooks/usePhones";
 import { useBrands } from "@/hooks/useBrands";
-import { useLikedPhoneIds } from "@/hooks/useLikedPhones";
 import { Header } from "@/components/Header";
 import { PhoneGrid } from "@/components/PhoneGrid";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useAuth } from "@/hooks/useAuth";
 import { Search, SlidersHorizontal, X, Check } from "lucide-react";
 import {
   Sheet,
@@ -53,13 +51,12 @@ export default function Index() {
 
   const { data: phones, isLoading } = usePhones(cityFilter || undefined);
   const { data: brands } = useBrands();
-  const { user } = useAuth();
 
   /* ================= HELPERS ================= */
 
   const conditionLabelMap: Record<PhoneCondition, string> = {
     yaxshi: "Yaxshi",
-    ortacha: "O'rtacha",
+    ortacha: "O‘rtacha",
     yaxshi_emas: "Yaxshi emas",
   };
 
@@ -68,33 +65,12 @@ export default function Index() {
       ? brands?.find((b) => b.id === brandFilter)?.name
       : null;
 
-  /* ================= STORAGE FILTER HANDLERS ================= */
-
-  const toggleStorage = (storage: PhoneStorage) => {
-    setStorageFilters((prev) =>
-      prev.includes(storage)
-        ? prev.filter((s) => s !== storage)
-        : [...prev, storage]
-    );
-  };
-
-  const toggleAllStorage = () => {
-    if (storageFilters.length === STORAGE_OPTIONS.length) {
-      setStorageFilters([]);
-    } else {
-      setStorageFilters([...STORAGE_OPTIONS]);
-    }
-  };
-
-  const isAllStorageSelected = storageFilters.length === STORAGE_OPTIONS.length;
-
   /* ================= FILTER LOGIC ================= */
 
   const filteredPhones = useMemo(() => {
     if (!phones) return [];
 
     return phones.filter((phone) => {
-      // Search
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         if (
@@ -105,19 +81,11 @@ export default function Index() {
         }
       }
 
-      // Brand
-      if (brandFilter !== "all" && phone.brand_id !== brandFilter)
+      if (brandFilter !== "all" && phone.brand_id !== brandFilter) return false;
+      if (storageFilters.length && !storageFilters.includes(phone.storage))
         return false;
-
-      // Storage - multi-select
-      if (storageFilters.length > 0 && !storageFilters.includes(phone.storage))
-        return false;
-
-      // Condition
       if (conditionFilter !== "all" && phone.condition !== conditionFilter)
         return false;
-
-      // Price
       if (minPrice && phone.price < Number(minPrice)) return false;
       if (maxPrice && phone.price > Number(maxPrice)) return false;
 
@@ -152,191 +120,184 @@ export default function Index() {
   /* ================= RENDER ================= */
 
   return (
-    <div className="min-h-screen bg-background pb-[env(safe-area-inset-bottom)]">
-      {/* Safe area for iOS status bar */}
+    <div className="min-h-screen bg-background">
       <div className="h-[env(safe-area-inset-top)] bg-card" />
-      
       <Header />
 
-      {/* SEARCH BAR */}
-      <section className="border-b bg-card px-4 py-3">
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="h-11 rounded-xl pl-10 pr-10"
-              placeholder="Nima qidiryapsiz?"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            {searchQuery && (
-              <button
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                onClick={() => setSearchQuery("")}
+      {/* SEARCH + FILTER BAR */}
+      <section className="border-b bg-card">
+        <div className="container mx-auto px-4 py-3">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="h-11 rounded-xl pl-10 pr-10"
+                placeholder="Nima qidiryapsiz?"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              {searchQuery && (
+                <button
+                  className="absolute right-3 top-1/2 -translate-y-1/2"
+                  onClick={() => setSearchQuery("")}
+                >
+                  <X className="h-4 w-4 text-muted-foreground" />
+                </button>
+              )}
+            </div>
+
+            <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+              <SheetTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="relative h-11 w-11 rounded-xl"
+                >
+                  <SlidersHorizontal className="h-5 w-5" />
+                  {activeFiltersCount > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
+                      {activeFiltersCount}
+                    </span>
+                  )}
+                </Button>
+              </SheetTrigger>
+
+              <SheetContent
+                side="bottom"
+                className="rounded-t-2xl max-h-[90vh] overflow-y-auto"
               >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </div>
+                <SheetHeader>
+                  <SheetTitle>Filtrlar</SheetTitle>
+                </SheetHeader>
 
-          <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
-            <SheetTrigger asChild>
-              <Button
-                variant="outline"
-                size="icon"
-                className="relative h-11 w-11 rounded-xl"
-              >
-                <SlidersHorizontal className="h-5 w-5" />
-                {activeFiltersCount > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
-                    {activeFiltersCount}
-                  </span>
-                )}
-              </Button>
-            </SheetTrigger>
-
-            <SheetContent side="bottom" className="rounded-t-2xl max-h-[90vh] overflow-y-auto">
-              <SheetHeader>
-                <SheetTitle>Filtrlar</SheetTitle>
-              </SheetHeader>
-
-              <div className="mt-4 space-y-5 pb-6">
-                {/* BRAND */}
-                <div className="space-y-2">
-                  <Label>Brend</Label>
-                  <Select
-                    value={brandFilter}
-                    onValueChange={(v) =>
-                      setBrandFilter(v as BrandFilterValue)
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Barchasi" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Barchasi</SelectItem>
-                      {brands?.map((b) => (
-                        <SelectItem key={b.id} value={b.id}>
-                          {b.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* STORAGE - Multi-select with custom checkboxes */}
-                <div className="space-y-2">
-                  <Label>Xotira</Label>
-                  <div className="rounded-lg border p-3 space-y-3">
-                    <button
-                      onClick={toggleAllStorage}
-                      className="flex items-center space-x-2 w-full text-left"
+                <div className="mt-4 space-y-5 pb-6">
+                  {/* BRAND */}
+                  <div className="space-y-2">
+                    <Label>Brend</Label>
+                    <Select
+                      value={brandFilter}
+                      onValueChange={(v) =>
+                        setBrandFilter(v as BrandFilterValue)
+                      }
                     >
-                      <div className={`h-5 w-5 rounded border-2 flex items-center justify-center ${
-                        isAllStorageSelected 
-                          ? 'bg-primary border-primary' 
-                          : 'border-input'
-                      }`}>
-                        {isAllStorageSelected && (
-                          <Check className="h-3 w-3 text-primary-foreground" />
-                        )}
-                      </div>
-                      <span className="text-sm font-medium">Barchasi</span>
-                    </button>
-                    
-                    <div className="h-px bg-border" />
-                    
-                    {STORAGE_OPTIONS.map((storage) => {
-                      const isChecked = storageFilters.includes(storage);
-                      return (
-                        <button
-                          key={storage}
-                          onClick={() => toggleStorage(storage)}
-                          className="flex items-center space-x-2 w-full text-left"
-                        >
-                          <div className={`h-5 w-5 rounded border-2 flex items-center justify-center ${
-                            isChecked 
-                              ? 'bg-primary border-primary' 
-                              : 'border-input'
-                          }`}>
-                            {isChecked && (
-                              <Check className="h-3 w-3 text-primary-foreground" />
-                            )}
-                          </div>
-                          <span className="text-sm">{storage}</span>
-                        </button>
-                      );
-                    })}
+                      <SelectTrigger>
+                        <SelectValue placeholder="Barchasi" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Barchasi</SelectItem>
+                        {brands?.map((b) => (
+                          <SelectItem key={b.id} value={b.id}>
+                            {b.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* STORAGE */}
+                  <div className="space-y-2">
+                    <Label>Xotira</Label>
+                    <div className="rounded-lg border p-3 space-y-3">
+                      {STORAGE_OPTIONS.map((storage) => {
+                        const checked = storageFilters.includes(storage);
+                        return (
+                          <button
+                            key={storage}
+                            onClick={() =>
+                              setStorageFilters((prev) =>
+                                checked
+                                  ? prev.filter((s) => s !== storage)
+                                  : [...prev, storage]
+                              )
+                            }
+                            className="flex items-center gap-2"
+                          >
+                            <div
+                              className={`h-5 w-5 rounded border flex items-center justify-center ${
+                                checked
+                                  ? "bg-primary border-primary"
+                                  : "border-input"
+                              }`}
+                            >
+                              {checked && (
+                                <Check className="h-3 w-3 text-primary-foreground" />
+                              )}
+                            </div>
+                            <span>{storage}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* CONDITION */}
+                  <div className="space-y-2">
+                    <Label>Holati</Label>
+                    <Select
+                      value={conditionFilter}
+                      onValueChange={(v) =>
+                        setConditionFilter(v as ConditionFilterValue)
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Barchasi" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Barchasi</SelectItem>
+                        {CONDITION_OPTIONS.map((c) => (
+                          <SelectItem key={c.value} value={c.value}>
+                            {c.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* PRICE */}
+                  <div className="space-y-2">
+                    <Label>Narx</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        type="number"
+                        placeholder="Min"
+                        value={minPrice}
+                        onChange={(e) => setMinPrice(e.target.value)}
+                      />
+                      <Input
+                        type="number"
+                        placeholder="Max"
+                        value={maxPrice}
+                        onChange={(e) => setMaxPrice(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={clearFilters}
+                    >
+                      Tozalash
+                    </Button>
+                    <Button
+                      className="flex-1"
+                      onClick={() => setFiltersOpen(false)}
+                    >
+                      Qo‘llash
+                    </Button>
                   </div>
                 </div>
-
-                {/* CONDITION */}
-                <div className="space-y-2">
-                  <Label>Holati</Label>
-                  <Select
-                    value={conditionFilter}
-                    onValueChange={(v) =>
-                      setConditionFilter(v as ConditionFilterValue)
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Barchasi" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Barchasi</SelectItem>
-                      {CONDITION_OPTIONS.map((c) => (
-                        <SelectItem key={c.value} value={c.value}>
-                          {c.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* PRICE */}
-                <div className="space-y-2">
-                  <Label>Narx oralig'i</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input
-                      type="number"
-                      placeholder="Min"
-                      value={minPrice}
-                      onChange={(e) => setMinPrice(e.target.value)}
-                    />
-                    <Input
-                      type="number"
-                      placeholder="Max"
-                      value={maxPrice}
-                      onChange={(e) => setMaxPrice(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-2 pt-2">
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={clearFilters}
-                  >
-                    Tozalash
-                  </Button>
-                  <Button
-                    className="flex-1"
-                    onClick={() => setFiltersOpen(false)}
-                  >
-                    Qo'llash
-                  </Button>
-                </div>
-              </div>
-            </SheetContent>
-          </Sheet>
+              </SheetContent>
+            </Sheet>
+          </div>
         </div>
       </section>
 
-      {/* ACTIVE FILTERS */}
+      {/* ACTIVE FILTER TAGS */}
       {(searchQuery || activeFiltersCount > 0) && (
-        <section className="border-b bg-muted/50 px-4 py-2">
-          <div className="flex flex-wrap gap-2">
+        <section className="border-b bg-muted/50">
+          <div className="container mx-auto px-4 py-2 flex flex-wrap gap-2">
             {searchQuery && (
               <FilterTag
                 label={`Qidiruv: "${searchQuery}"`}
@@ -349,11 +310,13 @@ export default function Index() {
                 onClear={() => setBrandFilter("all")}
               />
             )}
-            {storageFilters.map((storage) => (
+            {storageFilters.map((s) => (
               <FilterTag
-                key={storage}
-                label={`Xotira: ${storage}`}
-                onClear={() => toggleStorage(storage)}
+                key={s}
+                label={`Xotira: ${s}`}
+                onClear={() =>
+                  setStorageFilters((prev) => prev.filter((x) => x !== s))
+                }
               />
             ))}
             {conditionFilter !== "all" && (
@@ -364,7 +327,7 @@ export default function Index() {
             )}
             {(minPrice || maxPrice) && (
               <FilterTag
-                label={`Narx: ${minPrice || "0"} - ${maxPrice || "∞"}`}
+                label={`Narx: ${minPrice || 0} - ${maxPrice || "∞"}`}
                 onClear={() => {
                   setMinPrice("");
                   setMaxPrice("");
@@ -376,14 +339,14 @@ export default function Index() {
       )}
 
       {/* GRID */}
-      <main className="px-4 py-5 pb-[env(safe-area-inset-bottom)]">
+      <main className="container mx-auto px-4 py-6">
         <PhoneGrid phones={filteredPhones} isLoading={isLoading} />
       </main>
     </div>
   );
 }
 
-/* ================= SMALL COMPONENT ================= */
+/* ================= TAG ================= */
 
 function FilterTag({
   label,

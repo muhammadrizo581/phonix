@@ -67,7 +67,14 @@ export function usePhones(cityFilter?: UzbekistanCity) {
     queryFn: async () => {
       let query = supabase
         .from("phones")
-        .select("*")
+        .select(`
+          *,
+          phone_images (
+            image_url,
+            is_primary,
+            display_order
+          )
+        `)
         .order("created_at", { ascending: false });
 
       if (cityFilter) {
@@ -75,12 +82,13 @@ export function usePhones(cityFilter?: UzbekistanCity) {
       }
 
       const { data, error } = await query;
-
       if (error) throw error;
-      return data as Phone[];
+
+      return data;
     },
   });
 }
+
 
 export function useCreatePhone() {
   const queryClient = useQueryClient();

@@ -1,14 +1,32 @@
 import { useState, useEffect, useRef } from "react";
-import { usePhoneMessages, useSendMessage, useMarkAsRead, useDeleteMessage, useUpdateMessage, Message } from "@/hooks/useMessages";
+import {
+  usePhoneMessages,
+  useSendMessage,
+  useMarkAsRead,
+  useDeleteMessage,
+  useUpdateMessage,
+  Message,
+} from "@/hooks/useMessages";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Send, Loader2, ImagePlus, X, Trash2, Edit2, Check, MoreVertical, CheckCheck } from "lucide-react";
+import {
+  Send,
+  Loader2,
+  ImagePlus,
+  X,
+  Trash2,
+  Edit2,
+  Check,
+  MoreVertical,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { IoCheckmarkDoneOutline } from "react-icons/io5";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,285 +47,206 @@ interface ChatWindowProps {
   otherUserName: string;
 }
 
-export function ChatWindow({ phoneId, otherUserId, phoneName, otherUserName }: ChatWindowProps) {
+export function ChatWindow({
+  phoneId,
+  otherUserId,
+  phoneName,
+  otherUserName,
+}: ChatWindowProps) {
   const { user } = useAuth();
   const [message, setMessage] = useState("");
   const [pendingImages, setPendingImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: messages, isLoading } = usePhoneMessages(phoneId, otherUserId, user?.id);
+  const { data: messages, isLoading } = usePhoneMessages(
+    phoneId,
+    otherUserId,
+    user?.id
+  );
+
   const sendMessage = useSendMessage();
   const markAsRead = useMarkAsRead();
   const deleteMessage = useDeleteMessage();
   const updateMessage = useUpdateMessage();
 
-  const prevMessageCountRef = useRef<number>(0);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  // Only scroll when new messages are added, not on edits
+  /* ================= SCROLL ================= */
   useEffect(() => {
-    const currentCount = messages?.length || 0;
-    if (currentCount > prevMessageCountRef.current) {
-      scrollToBottom();
-    }
-    prevMessageCountRef.current = currentCount;
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Mark unread messages as read
+  /* ================= MARK AS READ ================= */
   useEffect(() => {
-    if (messages && user) {
-      const unreadMessageIds = messages
-        .filter((msg) => msg.receiver_id === user.id && !msg.is_read)
-        .map((msg) => msg.id);
+    if (!messages || !user) return;
 
-      if (unreadMessageIds.length > 0) {
-        markAsRead.mutate({ messageIds: unreadMessageIds });
-      }
+    const unreadIds = messages
+      .filter((m) => m.receiver_id === user.id && !m.is_read)
+      .map((m) => m.id);
+
+    if (unreadIds.length) {
+      markAsRead.mutate({ messageIds: unreadIds });
     }
   }, [messages, user]);
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0 || !user) return;
+  /* ================= IMAGE UPLOAD ================= */
+  const handleImageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    if (!e.target.files || !user) return;
 
-    const remainingSlots = 5 - pendingImages.length;
-    if (files.length > remainingSlots) {
-      toast.error(`Maksimum 5 ta rasm yuklash mumkin`);
-      return;
-    }
+    const files = Array.from(e.target.files).slice(
+      0,
+      5 - pendingImages.length
+    );
 
     setUploading(true);
-    const newImages: string[] = [];
+    const uploaded: string[] = [];
 
     try {
-      for (const file of Array.from(files).slice(0, remainingSlots)) {
+      for (const file of files) {
         if (!file.type.startsWith("image/")) continue;
-        if (file.size > 5 * 1024 * 1024) {
-          toast.error("Rasm hajmi 5MB dan oshmasligi kerak");
-          continue;
-        }
 
-        const fileExt = file.name.split(".").pop();
-        const fileName = `chat/${user.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const path = `chat/${user.id}/${Date.now()}-${file.name}`;
 
-        const { error: uploadError } = await supabase.storage
+        const { error } = await supabase.storage
           .from("phone-images")
-          .upload(fileName, file);
+          .upload(path, file);
 
-        if (uploadError) {
-          console.error("Upload error:", uploadError);
-          continue;
-        }
+        if (error) continue;
 
-        const { data: { publicUrl } } = supabase.storage
+        const { data } = supabase.storage
           .from("phone-images")
-          .getPublicUrl(fileName);
+          .getPublicUrl(path);
 
-        newImages.push(publicUrl);
+        uploaded.push(data.publicUrl);
       }
 
-      if (newImages.length > 0) {
-        setPendingImages((prev) => [...prev, ...newImages]);
-      }
-    } catch (error) {
-      console.error("Upload error:", error);
-      toast.error("Rasm yuklashda xatolik" + error);
+      setPendingImages((p) => [...p, ...uploaded]);
+    } catch {
+      toast.error("Rasm yuklashda xatolik");
     } finally {
       setUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
-  const handleRemoveImage = (index: number) => {
-    setPendingImages((prev) => prev.filter((_, i) => i !== index));
-  };
-
+  /* ================= SEND ================= */
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!message.trim() && pendingImages.length === 0) || !user) return;
+    if (!user || (!message.trim() && !pendingImages.length)) return;
 
     await sendMessage.mutateAsync({
       phoneId,
       receiverId: otherUserId,
-      content: message.trim() || (pendingImages.length > 0 ? "" : ""),
-      imageUrls: pendingImages.length > 0 ? pendingImages : undefined,
+      content: message.trim(),
+      imageUrls: pendingImages.length ? pendingImages : undefined,
     });
 
     setMessage("");
     setPendingImages([]);
   };
 
-  const handleDelete = async (msgId: string) => {
-    if (confirm("Xabarni o'chirmoqchimisiz?")) {
-      await deleteMessage.mutateAsync(msgId);
-    }
-  };
-
-  const handleEdit = (msg: Message) => {
-    setEditingMessageId(msg.id);
-    setMessage(msg.content);
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editingMessageId || !message.trim()) return;
-    try {
-      await updateMessage.mutateAsync({
-        messageId: editingMessageId,
-        content: message.trim(),
-      });
-      toast.success("Xabar tahrirlandi");
-      setEditingMessageId(null);
-      setMessage("");
-    } catch (error) {
-      console.error("Update error:", error);
-      toast.error("Xabarni tahrirlashda xatolik");
-    }
-  };
-
-  const handleCancelEdit = () => {
-    setEditingMessageId(null);
-    setMessage("");
-  };
-
+  /* ================= UI ================= */
   if (isLoading) {
     return (
       <div className="flex h-96 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="flex h-[calc(100vh-200px)] min-h-[400px] flex-col rounded-lg border bg-card">
-      {/* Header */}
-      <div className="border-b p-4">
-        <div className="flex items-center gap-3">
-          <Avatar className="h-10 w-10">
-            <AvatarFallback>{otherUserName?.[0]?.toUpperCase() || "U"}</AvatarFallback>
-          </Avatar>
-          <div>
-            <h3 className="font-semibold">{otherUserName || "Foydalanuvchi"}</h3>
-            <p className="text-sm text-muted-foreground">{phoneName} haqida</p>
-          </div>
+    <div className="flex h-[calc(100vh-160px)] flex-col rounded-xl border bg-card">
+      {/* HEADER */}
+      <div className="flex items-center gap-3 border-b p-4">
+        <Avatar>
+          <AvatarFallback>
+            {otherUserName?.[0]?.toUpperCase() || "U"}
+          </AvatarFallback>
+        </Avatar>
+        <div>
+          <p className="font-semibold">{otherUserName}</p>
+          <p className="text-xs text-muted-foreground">
+            {phoneName} haqida
+          </p>
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages?.length === 0 && (
-          <div className="flex h-full items-center justify-center">
-            <p className="text-muted-foreground">Hali xabarlar yo'q. Birinchi bo'lib yozing!</p>
-          </div>
-        )}
-
+      {/* MESSAGES */}
+      <div className="flex-1 space-y-3 overflow-y-auto p-4">
         {messages?.map((msg) => {
           const isOwn = msg.sender_id === user?.id;
-          const isEditing = editingMessageId === msg.id;
 
           return (
             <div
               key={msg.id}
               className={cn(
-                "group flex",
+                "flex",
                 isOwn ? "justify-end" : "justify-start"
               )}
             >
-              <div className="relative max-w-[70%]">
-                {/* Message actions for own messages */}
-                {isOwn && !isEditing && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="absolute -left-8 top-0 h-6 w-6 opacity-0 group-hover:opacity-100"
-                      >
-                        <MoreVertical className="h-3 w-3" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start">
-                      <DropdownMenuItem onClick={() => handleEdit(msg)}>
-                        <Edit2 className="mr-2 h-4 w-4" />
-                        Tahrirlash
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-destructive"
-                        onClick={() => handleDelete(msg.id)}
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        O'chirish
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+              <div
+                className={cn(
+                  "max-w-[75%] overflow-hidden rounded-2xl",
+                  isOwn
+                    ? "bg-[#1FA97C] text-white rounded-br-md"
+                    : "bg-muted rounded-bl-md"
                 )}
-
-                <div
-                  className={cn(
-                    "rounded-2xl px-4 py-2",
-                    isOwn
-                      ? "bg-primary text-primary-foreground rounded-br-md"
-                      : "bg-secondary text-secondary-foreground rounded-bl-md"
-                  )}
-                >
-                  {/* Images */}
-                  {msg.image_urls && msg.image_urls.length > 0 && (
-                    <div className={cn(
-                      "mb-2 grid gap-1",
-                      msg.image_urls.length === 1 ? "grid-cols-1" : "grid-cols-2"
-                    )}>
-                      {msg.image_urls.map((url, idx) => (
-                        <Dialog key={idx}>
-                          <DialogTrigger asChild>
-                            <button className="overflow-hidden rounded-lg">
-                              <img
-                                src={url}
-                                alt={`Image ${idx + 1}`}
-                                className="h-32 w-full object-cover transition-transform hover:scale-105"
-                              />
-                            </button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-3xl p-0">
-                            <img
-                              src={url}
-                              alt={`Image ${idx + 1}`}
-                              className="h-auto w-full rounded-lg"
-                            />
-                          </DialogContent>
-                        </Dialog>
-                      ))}
-                    </div>
-                  )}
-
-                  <p className={cn(
-                    "break-words",
-                    isEditing && "bg-primary/20 rounded px-1"
-                  )}>{msg.content}</p>
+              >
+                {/* IMAGES */}
+                {msg.image_urls && msg.image_urls.length > 0 && (
                   <div
                     className={cn(
-                      "mt-1 flex items-center justify-end gap-1 text-xs",
-                      isOwn ? "text-primary-foreground/70" : "text-muted-foreground"
+                      "grid overflow-hidden",
+                      msg.image_urls.length > 1
+                        ? "grid-cols-2 gap-0.5"
+                        : "grid-cols-1"
                     )}
                   >
-                    <span>{format(new Date(msg.created_at), "HH:mm")}</span>
-                    {isOwn && (
-                      <span className="ml-0.5">
-                        {msg.is_read ? (
-                          <CheckCheck className="h-3.5 w-3.5 text-blue-400" />
+                    {msg.image_urls.map((url, i) => (
+                      <Dialog key={i}>
+                        <DialogTrigger asChild>
+                          <button className="block overflow-hidden bg-black">
+                            <img
+                              src={url}
+                              className="aspect-[4/5] w-full object-cover"
+                            />
+                          </button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-4xl bg-black p-0">
+                          <img
+                            src={url}
+                            className="w-full object-contain"
+                          />
+                        </DialogContent>
+                      </Dialog>
+                    ))}
+                  </div>
+                )}
+
+                {/* TEXT */}
+                {msg.content && (
+                  <div className="px-3 py-2">
+                    <p className="text-sm break-words">
+                      {msg.content}
+                    </p>
+
+                    <div className="mt-1 flex items-center justify-end gap-1 text-[11px] opacity-80">
+                      <span>
+                        {format(new Date(msg.created_at), "HH:mm")}
+                      </span>
+                      {isOwn &&
+                        (msg.is_read ? (
+                          <IoCheckmarkDoneOutline className="h-4 w-4 text-blue-300" />
                         ) : (
                           <Check className="h-3.5 w-3.5" />
-                        )}
-                      </span>
-                    )}
+                        ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           );
@@ -315,96 +254,35 @@ export function ChatWindow({ phoneId, otherUserId, phoneName, otherUserName }: C
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Pending images preview */}
-      {pendingImages.length > 0 && (
-        <div className="border-t p-2">
-          <div className="flex gap-2 overflow-x-auto">
-            {pendingImages.map((url, idx) => (
-              <div key={idx} className="relative h-16 w-16 flex-shrink-0">
-                <img
-                  src={url}
-                  alt={`Pending ${idx + 1}`}
-                  className="h-full w-full rounded-lg object-cover"
-                />
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="destructive"
-                  className="absolute -right-1 -top-1 h-5 w-5"
-                  onClick={() => handleRemoveImage(idx)}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Editing indicator */}
-      {editingMessageId && (
-        <div className="border-t bg-muted/50 px-4 py-2 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm">
-            <Edit2 className="h-4 w-4 text-primary" />
-            <span className="text-muted-foreground">Xabarni tahrirlash</span>
-          </div>
+      {/* INPUT */}
+      <form onSubmit={handleSend} className="border-t p-4">
+        <div className="flex gap-2">
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="h-6 w-6"
-            onClick={handleCancelEdit}
+            onClick={() => fileInputRef.current?.click()}
           >
-            <X className="h-4 w-4" />
+            <ImagePlus className="h-4 w-4" />
           </Button>
-        </div>
-      )}
 
-      {/* Input */}
-      <form onSubmit={editingMessageId ? (e) => { e.preventDefault(); handleSaveEdit(); } : handleSend} className="border-t p-4">
-        <div className="flex gap-2">
-          {!editingMessageId && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading || pendingImages.length >= 5}
-            >
-              {uploading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <ImagePlus className="h-4 w-4" />
-              )}
-            </Button>
-          )}
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*"
             multiple
+            hidden
             onChange={handleImageUpload}
-            className="hidden"
           />
+
           <Input
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder={editingMessageId ? "Xabarni tahrirlang..." : "Xabar yozing..."}
-            className="flex-1"
-            autoFocus={!!editingMessageId}
+            placeholder="Xabar yozing..."
           />
-          <Button
-            type="submit"
-            size="icon"
-            disabled={!message.trim() && !editingMessageId && pendingImages.length === 0}
-          >
-            {sendMessage.isPending || updateMessage.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : editingMessageId ? (
-              <Check className="h-4 w-4" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
+
+          <Button type="submit" size="icon">
+            <Send className="h-4 w-4" />
           </Button>
         </div>
       </form>
