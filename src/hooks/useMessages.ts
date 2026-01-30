@@ -66,7 +66,7 @@ export function useConversations(userId: string | undefined) {
           const { data: profile } = await supabase
             .from("profiles")
             .select("full_name")
-            .eq("user_id", otherUserId)
+            .eq("id", otherUserId)
             .single();
 
           // Get phone's first image

@@ -21,7 +21,6 @@ export function useLikedPhoneIds(userId?: string) {
   });
 }
 
-// Like toggle funksiyasi
 export function useToggleLike() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -37,7 +36,7 @@ export function useToggleLike() {
       isLiked: boolean;
     }) => {
       if (isLiked) {
-        // Unlike - o'chirish
+        // ✅ UNLIKE
         const { error } = await (supabase as any)
           .from("likes")
           .delete()
@@ -47,37 +46,83 @@ export function useToggleLike() {
         if (error) throw error;
         return { action: "unliked" };
       } else {
-        // Like - qo'shish
+        // ✅ LIKE
         const { error } = await (supabase as any)
           .from("likes")
-          .insert({ phone_id: phoneId, user_id: userId });
+          .insert({
+            phone_id: phoneId,
+            user_id: userId,
+          });
 
         if (error) throw error;
         return { action: "liked" };
       }
     },
-    onSuccess: (data, variables) => {
-      // Cache'ni yangilash
-      queryClient.invalidateQueries({ queryKey: ["liked-phone-ids", variables.userId] });
-      queryClient.invalidateQueries({ queryKey: ["liked-phones", variables.userId] });
 
-      // Toast ko'rsatish
-      toast({
-        title: data.action === "liked" ? "" : "",
-        description: data.action === "liked" 
-          ? "Telefon sevimlilaringizga qo'shildi"
-          : "Telefon sevimlilardan o'chirildi",
+    // 🔥 OPTIMISTIC UPDATE (instant UI)
+    onMutate: async ({ phoneId, userId, isLiked }) => {
+      await queryClient.cancelQueries({
+        queryKey: ["liked-phone-ids", userId],
       });
+
+      const previous = queryClient.getQueryData<string[]>([
+        "liked-phone-ids",
+        userId,
+      ]);
+
+      queryClient.setQueryData<string[]>(
+        ["liked-phone-ids", userId],
+        (old = []) => {
+          if (isLiked) {
+            return old.filter((id) => id !== phoneId);
+          } else {
+            return [...old, phoneId];
+          }
+        }
+      );
+
+      return { previous };
     },
-    onError: (error) => {
+
+    // ❌ ERROR bo'lsa rollback
+    onError: (_, { userId }, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(
+          ["liked-phone-ids", userId],
+          context.previous
+        );
+      }
+
       toast({
         title: "Xatolik",
-        description: "Like qo'yishda xatolik yuz berdi",
+        description: "Like qo'yishda xatolik",
         variant: "destructive",
+      });
+    },
+
+    // ✅ SUCCESS
+    onSuccess: (data) => {
+      toast({
+        description:
+          data.action === "liked"
+            ? "Sevimlilarga qo'shildi"
+            : "Sevimlilardan o'chirildi",
+      });
+    },
+
+    // 🔄 Sync qilish
+    onSettled: (_, __, { userId }) => {
+      queryClient.invalidateQueries({
+        queryKey: ["liked-phone-ids", userId],
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: ["liked-phones", userId],
       });
     },
   });
 }
+
 
 // Liked phones ro'yxatini olish (sevimlilar sahifasi uchun)
 export function useLikedPhones(userId?: string) {

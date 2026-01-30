@@ -56,7 +56,7 @@ export default function Index() {
 
   const conditionLabelMap: Record<PhoneCondition, string> = {
     yaxshi: "Yaxshi",
-    ortacha: "O‘rtacha",
+    ortacha: "O'rtacha",
     yaxshi_emas: "Yaxshi emas",
   };
 
@@ -284,7 +284,7 @@ export default function Index() {
                       className="flex-1"
                       onClick={() => setFiltersOpen(false)}
                     >
-                      Qo‘llash
+                      Qo'llash
                     </Button>
                   </div>
                 </div>

@@ -52,7 +52,7 @@ export default function Chat() {
         const { data: profileData } = await supabase
           .from("profiles")
           .select("full_name")
-          .eq("user_id", otherUserId)
+          .eq("id", otherUserId)
           .single();
 
         if (profileData) {

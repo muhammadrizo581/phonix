@@ -34,7 +34,7 @@ export default function Messages() {
       const { data: profile } = await supabase
         .from("profiles")
         .select("full_name")
-        .eq("user_id", sellerId)
+        .eq("id", sellerId)
         .single();
 
       return {

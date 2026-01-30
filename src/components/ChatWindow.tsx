@@ -212,8 +212,14 @@ export function ChatWindow({
                           <button className="block overflow-hidden bg-black">
                             <img
                               src={url}
-                              className="aspect-[4/5] w-full object-cover"
+                              className={cn(
+                                "max-h-[260px] w-auto max-w-[220px] object-cover",
+                                msg.content
+                                  ? "rounded-t-xl rounded-b-none" // text bor
+                                  : "rounded-xl" // faqat rasm
+                              )}
                             />
+
                           </button>
                         </DialogTrigger>
                         <DialogContent className="max-w-4xl bg-black p-0">

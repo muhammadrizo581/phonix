@@ -65,6 +65,11 @@ export function usePhones(cityFilter?: UzbekistanCity) {
   return useQuery({
     queryKey: ["phones", cityFilter],
     queryFn: async () => {
+      // 🔥 current userni olamiz
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
       let query = supabase
         .from("phones")
         .select(`
@@ -77,17 +82,26 @@ export function usePhones(cityFilter?: UzbekistanCity) {
         `)
         .order("created_at", { ascending: false });
 
+      // 🔥 shahar filter
       if (cityFilter) {
         query = query.eq("city", cityFilter);
       }
 
+      // 🔥 ENG MUHIM QISM
+      // o'z e’lonlarini ko'rsatmaslik
+      if (user) {
+        query = query.neq("owner_id", user.id);
+      }
+
       const { data, error } = await query;
+
       if (error) throw error;
 
       return data;
     },
   });
 }
+
 
 
 export function useCreatePhone() {
